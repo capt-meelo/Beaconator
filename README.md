@@ -1,6 +1,6 @@
 # Beaconator
 [![release](https://img.shields.io/github/release/capt-meelo/Beaconator.svg?label=version&style=flat)](https://github.com/capt-meelo/Beaconator/releases)
-[![license](https://img.shields.io/github/license/capt-meelo/Beaconator.svg?style=flat)](https://github.com/capt-meelo/Beaconator/blob/master/LICENSE)
+[![license](https://img.shields.io/github/license/capt-meelo/Beaconator.svg?style=flat)](https://github.com/capt-meelo/Beaconator/blob/main/LICENSE)
 [![issues](https://img.shields.io/github/issues-raw/capt-meelo/Beaconator.svg?style=flat)](https://github.com/capt-meelo/Beaconator/issues?q=is:issue+is:open)
 
 Beaconator is an aggressor script for Cobalt Strike used to generate a raw **stageless** shellcode and packing the generated shellcode using [PEzor](https://github.com/phra/PEzor).
