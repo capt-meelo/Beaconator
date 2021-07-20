@@ -16,12 +16,12 @@ popup beaconator {
 }
 
 sub runBeaconator {
-	$dialog = dialog("Beacon Generator", %(listener => "Select Listener", arch => "x64"), &generateBeacon);
-	dialog_description($dialog, "Generate a raw stageless shellcode using Cobalt Strike, then pack the generated shellcode with PEzor.");
-	drow_listener_stage($dialog, "listener", "Listener:");
+    $dialog = dialog("Beacon Generator", %(listener => "Select Listener", arch => "x64"), &generateBeacon);
+    dialog_description($dialog, "Generate a raw stageless shellcode using Cobalt Strike, then pack the generated shellcode with PEzor.");
+    drow_listener_stage($dialog, "listener", "Listener:");
     drow_combobox($dialog, "arch", "Architecture:", @("x86", "x64"));
     drow_checkbox($dialog, "hooks", "Hooks:", "Remove user-land hooks");
-	drow_checkbox($dialog, "antidebug", "Anti-debug:", "Add anti-debug checks");
+    drow_checkbox($dialog, "antidebug", "Anti-debug:", "Add anti-debug checks");
     drow_checkbox($dialog, "syscalls", "Raw Syscalls:", "Use raw syscalls (x64 and Win10 Only)");
     drow_checkbox($dialog, "sgn", "SGN:", "Encode the provided shellcode with SGN");
     drow_checkbox($dialog, "text", "Text Section:", "Store shellcode in .text section instead of .data");
@@ -30,7 +30,7 @@ sub runBeaconator {
     drow_combobox($dialog, "format", "Output Format: ", @("exe", "dll", "reflective-dll", "service-exe", "service-dll", "dotnet", "dotnet-createsection", "dotnet-pinvoke"));
     dbutton_action($dialog, "Generate");
     dbutton_help($dialog, "https://github.com/phra/PEzor/blob/master/README.md#pezor-shellcode");
-	dialog_show($dialog);
+    dialog_show($dialog);
 }
 
 sub generateBeacon {
