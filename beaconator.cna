@@ -139,7 +139,7 @@ sub generateBeacon {
     printAll(@data);
     closef($process);
 
-    #reset options
+    # Reset options
     $hooks = "";
     $antidebug = "";
     $syscalls = "";
