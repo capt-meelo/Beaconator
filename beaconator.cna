@@ -139,6 +139,15 @@ sub generateBeacon {
     printAll(@data);
     closef($process);
 
+    #reset options
+    $hooks = "";
+    $antidebug = "";
+    $syscalls = "";
+    $sgn = "";
+    $text = "";
+    $rx = "";
+    $self = "";
+
     # Show message
     println("\c9[+] Success! Generated beacon can be found at " . script_resource($BUILD_DIR). ".");
     show_message("Success! Generated beacon can be found at " . script_resource($BUILD_DIR). ".");
