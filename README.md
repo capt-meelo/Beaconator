@@ -1,7 +1,9 @@
 # Beaconator
-[![release](https://img.shields.io/github/release/capt-meelo/Beaconator.svg?label=version&style=flat)](https://github.com/capt-meelo/Beaconator/releases)
-[![license](https://img.shields.io/github/license/capt-meelo/Beaconator.svg?style=flat)](https://github.com/capt-meelo/Beaconator/blob/main/LICENSE)
-[![issues](https://img.shields.io/github/issues-raw/capt-meelo/Beaconator.svg?style=flat)](https://github.com/capt-meelo/Beaconator/issues?q=is:issue+is:open)
+[![release](https://img.shields.io/github/release/capt-meelo/Beaconator?label=version&color=brightgreen)](https://github.com/capt-meelo/Beaconator/releases)
+[![license](https://img.shields.io/github/license/capt-meelo/Beaconator?color=lightgrey)](https://github.com/capt-meelo/Beaconator/blob/main/LICENSE)
+[![issues](https://img.shields.io/github/issues/capt-meelo/Beaconator?color=red)](https://github.com/capt-meelo/Beaconator/issues)
+[![stars](https://img.shields.io/github/stars/capt-meelo/Beaconator)](https://github.com/capt-meelo/Beaconator/stargazers)
+[![forks](https://img.shields.io/github/forks/capt-meelo/Beaconator?color=yellow)](https://github.com/capt-meelo/Beaconator/network)
 
 Beaconator is an aggressor script for Cobalt Strike used to generate a raw **stageless** shellcode and packing the generated shellcode using [PEzor](https://github.com/phra/PEzor).
 
